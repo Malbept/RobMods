@@ -1,95 +1,140 @@
--- 📦 Прототип "Pro Logger"
 local Http = game:GetService("HttpService")
-local SS = game:GetService("ScreenshotService") or game:GetService("CoreGui")
 local Players = game:GetService("Players")
 local Player = Players.LocalPlayer
-local token = "8101289751:AAEk6wpg5UkUBY8S5dSRLcTI0M8TJIZssc4"
-local chat_id = "5678878569" -- замени на свой
 
-local running, interval = false, 120
+local TOKEN = "8101289751:AAEk6wpg5UkUBY8S5dSRLcTI0M8TJIZssc4"
+local CHAT_ID = "5678878569" -- ⚠️ ЗАМЕНИ
 
--- 🔁 Отправка HTTP или Synapse
-local function sendRequest(url, body)
-  if syn and syn.request then
-    syn.request({
-      Url = url, Method = "POST",
-      Headers = {["Content-Type"]="application/json"},
-      Body = Http:JSONEncode(body)
-    })
-  elseif http_request then
-    http_request({
-      Url = url, Method = "POST",
-      Headers = {["Content-Type"]="application/json"},
-      Body = Http:JSONEncode(body)
-    })
-  end
-end
+local INTERVAL = 60
+local running = false
 
--- 🧾 Собираем инфу о растениях и питомцах
-local function collectInfo()
-  local pets = {}
-  for _, p in ipairs(Player:FindFirstChild("Pets") and Player.Pets:GetChildren() or {}) do
-    table.insert(pets, p.Name)
-  end
-  local plants = {}
-  for _, obj in pairs(workspace:GetDescendants()) do
-    if obj:FindFirstChild("Owner") and obj.Owner.Value == Player then
-      local info = {
-        name = obj.Name,
-        level = obj:FindFirstChild("Level") and obj.Level.Value or "?",
-        mutation = obj:FindFirstChild("Mutation") and obj.Mutation.Value or "none",
-        price = obj:FindFirstChild("Price") and obj.Price.Value or "?"
-      }
-      table.insert(plants, info)
+-- 📤 Отправка текста
+local function sendText(text)
+    local url = "https://api.telegram.org/bot"..TOKEN.."/sendMessage"
+    local data = {
+        chat_id = CHAT_ID,
+        text = text
+    }
+    local body = Http:JSONEncode(data)
+
+    if syn and syn.request then
+        syn.request({
+            Url = url,
+            Method = "POST",
+            Headers = {["Content-Type"] = "application/json"},
+            Body = body
+        })
+    elseif http_request then
+        http_request({
+            Url = url,
+            Method = "POST",
+            Headers = {["Content-Type"] = "application/json"},
+            Body = body
+        })
     end
-  end
-  return pets, plants
 end
 
--- 📷 Отправляем скриншот + JSON
-local function sendSnapshot()
-  local pets, plants = collectInfo()
-  local shot = SS:CaptureGame()
-  local url = "https://api.telegram.org/bot"..token.."/sendPhoto"
-  syn.request({
-    Url = url,
-    Method = "POST",
-    Body = Http:JSONEncode({
-      chat_id = chat_id,
-      caption = "🪴 Снимок + лог"
-    }),
-    Headers = {["Content-Type"]="application/json"},
-    File = shot
-  })
-  sendRequest("https://api.telegram.org/bot"..token.."/sendMessage", {
-    chat_id = chat_id,
-    text = Http:JSONEncode({pets = pets, plants = plants})
-  })
+-- 📸 Отправка скрина
+local function sendScreenshot()
+    if getscreenshot then
+        local imageData = getscreenshot()
+        local boundary = "----WebKitFormBoundary"..tostring(math.random(100000, 999999))
+        local body = "--"..boundary.."\r\n"..
+            'Content-Disposition: form-data; name="chat_id"\r\n\r\n'..CHAT_ID.."\r\n"..
+            "--"..boundary.."\r\n"..
+            'Content-Disposition: form-data; name="photo"; filename="screenshot.png"\r\n'..
+            "Content-Type: image/png\r\n\r\n"..
+            imageData.."\r\n"..
+            "--"..boundary.."--"
+
+        local headers = {
+            ["Content-Type"] = "multipart/form-data; boundary="..boundary,
+            ["Content-Length"] = tostring(#body)
+        }
+
+        local url = "https://api.telegram.org/bot"..TOKEN.."/sendPhoto"
+
+        if syn and syn.request then
+            syn.request({
+                Url = url,
+                Method = "POST",
+                Headers = headers,
+                Body = body
+            })
+        elseif http_request then
+            http_request({
+                Url = url,
+                Method = "POST",
+                Headers = headers,
+                Body = body
+            })
+        end
+    else
+        sendText("⚠️ getscreenshot не поддерживается в этом эксплойте")
+    end
 end
 
--- 🎛 GUI
-local gui = Instance.new("ScreenGui", Player:WaitForChild("PlayerGui"))
-local f = Instance.new("Frame", gui)
-f.Size = UDim2.new(0, 260, 0, 180); f.Position = UDim2.new(0,20,0,100); f.BackgroundColor3 = Color3.fromRGB(30,30,30)
+-- 🧠 Сбор инфы
+local function collectInfo()
+    local coins = Player:FindFirstChild("leaderstats") and Player.leaderstats:FindFirstChild("Coins") and Player.leaderstats.Coins.Value or 0
+    local harvest = Player:FindFirstChild("leaderstats") and Player.leaderstats:FindFirstChild("Harvest") and Player.leaderstats.Harvest.Value or 0
+    local pets = Player:FindFirstChild("Pets") and #Player.Pets:GetChildren() or 0
 
-local t = Instance.new("TextLabel", f)
-t.Text = "Grow Logger Pro"; t.Size = UDim2.new(1,0,0,30); t.BackgroundColor3 = Color3.fromRGB(50,50,50); t.TextColor3=Color3.new(1,1,1)
+    local msg = "🌿 Grow a Garden Log\n👤 "..Player.Name..
+        "\n💰 Coins: "..coins..
+        "\n🌽 Harvest: "..harvest..
+        "\n🐾 Pets: "..pets..
+        "\n🕒 "..os.date("%H:%M:%S")
 
-local btn = function(title,y,color,act)
-  local b=Instance.new("TextButton",f)
-  b.Text=title; b.Size=UDim2.new(1,-20,0,30); b.Position=UDim2.new(0,10,0,y)
-  b.BackgroundColor3=color; b.TextColor3=Color3.new(1,1,1)
-  b.MouseButton1Click:Connect(act)
+    return msg
 end
 
-btn("▶️ Старт",40,Color3.fromRGB(70,180,70),function() running=true end)
-btn("⏹ Стоп",80,Color3.fromRGB(180,70,70),function() running=false end)
-btn("📤 Снимок",120,Color3.fromRGB(80,80,200),sendSnapshot)
+-- 📦 Отправка всей инфы + фото
+local function sendFullLog()
+    sendText(collectInfo())
+    task.wait(1.2)
+    sendScreenshot()
+end
 
--- 🔄 Цикл логгера
+-- 🔁 Авто-цикл
 task.spawn(function()
-  while true do
-    if running then sendSnapshot() end
-    wait(interval)
-  end
+    while true do
+        if running then
+            sendFullLog()
+        end
+        wait(INTERVAL)
+    end
+end)
+
+-- 🖼 GUI
+local gui = Instance.new("ScreenGui", Player:WaitForChild("PlayerGui"))
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.new(0, 220, 0, 140)
+frame.Position = UDim2.new(0, 10, 0, 120)
+frame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+
+local function makeBtn(text, y, color, callback)
+    local btn = Instance.new("TextButton", frame)
+    btn.Position = UDim2.new(0, 10, 0, y)
+    btn.Size = UDim2.new(1, -20, 0, 30)
+    btn.Text = text
+    btn.BackgroundColor3 = color
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.Font = Enum.Font.SourceSans
+    btn.TextSize = 16
+    btn.MouseButton1Click:Connect(callback)
+end
+
+makeBtn("▶️ Старт авто", 10, Color3.fromRGB(70, 180, 70), function()
+    running = true
+    sendText("✅ Авто логгер включен.")
+end)
+
+makeBtn("⏹ Стоп авто", 50, Color3.fromRGB(180, 70, 70), function()
+    running = false
+    sendText("⛔ Авто логгер выключен.")
+end)
+
+makeBtn("📤 Отправить сейчас", 90, Color3.fromRGB(70, 70, 180), function()
+    sendFullLog()
 end)
