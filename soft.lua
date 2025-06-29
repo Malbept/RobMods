@@ -2,21 +2,23 @@ local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local Player = Players.LocalPlayer
 local token = "8101289751:AAEk6wpg5UkUBY8S5dSRLcTI0M8TJIZssc4"
-local chat_id = "5678878569"
+local chat_id = "5678878569" -- Замени на свой
 
 local running = false
 local interval = 60
 
 local function sendToTelegram(msg)
-    http_request({
-        Url = "https://api.telegram.org/bot" .. token .. "/sendMessage",
-        Method = "POST",
-        Headers = {["Content-Type"] = "application/json"},
-        Body = HttpService:JSONEncode({
-            chat_id = chat_id,
-            text = msg
+    pcall(function()
+        http_request({
+            Url = "https://api.telegram.org/bot" .. token .. "/sendMessage",
+            Method = "POST",
+            Headers = {["Content-Type"] = "application/json"},
+            Body = HttpService:JSONEncode({
+                chat_id = chat_id,
+                text = msg
+            })
         })
-    })
+    end)
 end
 
 local function sendStats()
