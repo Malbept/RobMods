@@ -1,21 +1,16 @@
--- @description Grow a Garden Telegram Notifier (Horizontal Red GUI, Price Tooltip, Russian Translation)
+-- @description Grow a Garden Helper (Horizontal Red GUI, Price Tooltip, Russian Translation)
 -- @author Grok (based on user request)
 
 -- Услуги Roblox
-local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local Player = Players.LocalPlayer
 local PlayerGui = Player.PlayerGui
+local workspace = game:GetService("Workspace")
 
 -- Конфигурация
 local Config = {
-    TelegramBotToken = "8101289751:AAEk6wpg5UkUBY8S5dSRLcTI0M8TJIZssc4",
-    TelegramChatId = "5678878569",
-    ReportingEnabled = true,
-    ReportInterval = 300, -- Отправка каждые 5 минут для отладки
     AntiAFK = true,
     RussianTranslation = true,
     ShowPriceTooltip = true, -- Подсчёт цены при наведении
@@ -23,26 +18,26 @@ local Config = {
 
 -- Таблица мутаций
 local Mutations = {
-    ["Wet"] = {Name = "Мокрый", Multiplier = 2, Description = "Во время дождя или грозы"},
-    ["Chilled"] = {Name = "Охлаждённый", Multiplier = 2, Description = "Во время заморозков или с Полярным медведем"},
-    ["Chocolate"] = {Name = "Шоколадный", Multiplier = 2, Description = "Через Шоколадный разбрызгиватель (Пасха 2025)"},
-    ["Moonlit"] = {Name = "Лунный", Multiplier = 2, Description = "Ночью, во время Лунного сияния"},
-    ["Bloodlit"] = {Name = "Кровавый", Multiplier = 4, Description = "Во время Кровавой луны"},
-    ["Plasma"] = {Name = "Плазменный", Multiplier = 5, Description = "Через админ-погоду с лазерами"},
-    ["Frozen"] = {Name = "Замороженный", Multiplier = 10, Description = "Мокрый + Охлаждённый или Полярный медведь"},
-    ["Golden"] = {Name = "Золотой", Multiplier = 20, Description = "1% шанс или через Стрекозу"},
-    ["Zombified"] = {Name = "Зомбированный", Multiplier = 25, Description = "Через Зомби-курицу (20% каждые 30 мин)"},
-    ["Twisted"] = {Name = "Искажённый", Multiplier = 30, Description = "Во время события Торнадо"},
-    ["Rainbow"] = {Name = "Радужный", Multiplier = 50, Description = "0.1% шанс или за Robux"},
-    ["Shocked"] = {Name = "Электрический", Multiplier = 100, Description = "Удар молнии или Светлячок (3.07% каждые 1.32 мин)"},
-    ["Celestial"] = {Name = "Небесный", Multiplier = 120, Description = "Удар звезды во время Метеоритного дождя"},
-    ["Disco"] = {Name = "Диско", Multiplier = 125, Description = "Диско-событие или Диско-пчела"},
-    ["Solar"] = {Name = "Солнечный", Multiplier = 150, Description = "Золотое Затмение Обезьяны"},
-    ["Eclipse"] = {Name = "Затмение", Multiplier = 80, Description = "Золотое Затмение Обезьяны"},
-    ["Galactic"] = {Name = "Галактический", Multiplier = 4, Description = "Событие Космическое путешествие"},
-    ["Pollinated"] = {Name = "Опылённый", Multiplier = 3, Description = "Через пчел при активном игроке"},
-    ["HoneyGlazed"] = {Name = "Медовая глазурь", Multiplier = 5, Description = "Через Медведя-пчелу"},
-    ["Sundried"] = {Name = "Высушенный солнцем", Multiplier = 1, Description = "Неизвестно (предположительно событие)"}
+    ["Wet"] = {Name = "Мокрый", Multiplier = 2},
+    ["Chilled"] = {Name = "Охлаждённый", Multiplier = 2},
+    ["Chocolate"] = {Name = "Шоколадный", Multiplier = 2},
+    ["Moonlit"] = {Name = "Лунный", Multiplier = 2},
+    ["Bloodlit"] = {Name = "Кровавый", Multiplier = 4},
+    ["Plasma"] = {Name = "Плазменный", Multiplier = 5},
+    ["Frozen"] = {Name = "Замороженный", Multiplier = 10},
+    ["Golden"] = {Name = "Золотой", Multiplier = 20},
+    ["Zombified"] = {Name = "Зомбированный", Multiplier = 25},
+    ["Twisted"] = {Name = "Искажённый", Multiplier = 30},
+    ["Rainbow"] = {Name = "Радужный", Multiplier = 50},
+    ["Shocked"] = {Name = "Электрический", Multiplier = 100},
+    ["Celestial"] = {Name = "Небесный", Multiplier = 120},
+    ["Disco"] = {Name = "Диско", Multiplier = 125},
+    ["Solar"] = {Name = "Солнечный", Multiplier = 150},
+    ["Eclipse"] = {Name = "Затмение", Multiplier = 80},
+    ["Galactic"] = {Name = "Галактический", Multiplier = 4},
+    ["Pollinated"] = {Name = "Опылённый", Multiplier = 3},
+    ["HoneyGlazed"] = {Name = "Медовая глазурь", Multiplier = 5},
+    ["Sundried"] = {Name = "Высушенный солнцем", Multiplier = 1}
 }
 
 -- Таблица растений
@@ -59,7 +54,7 @@ local PlantPrices = {
 
 -- Создание GUI
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "GardenNotifierGui"
+ScreenGui.Name = "GardenHelperGui"
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 
@@ -103,16 +98,40 @@ local function CreateGui()
     CloseCorner.CornerRadius = UDim.new(0, 8)
     CloseCorner.Parent = CloseButton
     CloseButton.MouseButton1Click:Connect(function()
+        print("Закрытие GUI")
         Frame.Visible = false
         Icon.Visible = true
+    end)
+
+    -- Кнопка скрытия
+    local HideButton = Instance.new("TextButton")
+    HideButton.Size = UDim2.new(0, 100, 0, 30)
+    HideButton.Position = UDim2.new(0, 5, 0, 40)
+    HideButton.Text = "Скрыть"
+    HideButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+    HideButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    HideButton.TextSize = 14
+    HideButton.Parent = Frame
+    local HideCorner = Instance.new("UICorner")
+    HideCorner.CornerRadius = UDim.new(0, 8)
+    HideCorner.Parent = HideButton
+    HideButton.MouseButton1Click:Connect(function()
+        print("Скрытие GUI")
+        local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        local tween = TweenService:Create(Frame, tweenInfo, {Position = UDim2.new(0.5, -300, 1, 0)})
+        tween:Play()
+        tween.Completed:Connect(function()
+            Frame.Visible = false
+            Icon.Visible = true
+        end)
     end)
 
     -- Кнопка подсчёта цены
     local PriceTooltipButton = Instance.new("TextButton")
     PriceTooltipButton.Size = UDim2.new(0, 150, 0, 30)
-    PriceTooltipButton.Position = UDim2.new(0, 5, 0, 40)
+    PriceTooltipButton.Position = UDim2.new(0, 110, 0, 40)
     PriceTooltipButton.Text = "Подсчёт цены: Вкл"
-    PriceTooltipButton.BackgroundColor3 = Color3.fromRGB(100, 50, 50)
+    PriceTooltipButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
     PriceTooltipButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     PriceTooltipButton.TextSize = 14
     PriceTooltipButton.Parent = Frame
@@ -122,6 +141,7 @@ local function CreateGui()
     PriceTooltipButton.MouseButton1Click:Connect(function()
         Config.ShowPriceTooltip = not Config.ShowPriceTooltip
         PriceTooltipButton.Text = "Подсчёт цены: " .. (Config.ShowPriceTooltip and "Вкл" or "Выкл")
+        print("Подсчёт цены: " .. tostring(Config.ShowPriceTooltip))
     end)
 
     -- Вкладки
@@ -130,8 +150,8 @@ local function CreateGui()
     local TabButtons = {}
     for i, tab in ipairs(Tabs) do
         local TabButton = Instance.new("TextButton")
-        TabButton.Size = UDim2.new(0, 120, 0, 30)
-        TabButton.Position = UDim2.new(0, 160 + (i-1)*125, 0, 40)
+        TabButton.Size = UDim2.new(0, 100, 0, 30)
+        TabButton.Position = UDim2.new(0, 265 + (i-1)*105, 0, 40)
         TabButton.Text = tab
         TabButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
         TabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -141,9 +161,9 @@ local function CreateGui()
         TabCorner.CornerRadius = UDim.new(0, 6)
         TabCorner.Parent = TabButton
         TabButton.MouseButton1Click:Connect(function()
+            print("Нажата вкладка: " .. tab)
             CurrentTab = tab
             UpdateInfoLabel()
-            -- Анимация нажатия
             local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
             local tween = TweenService:Create(TabButton, tweenInfo, {BackgroundColor3 = Color3.fromRGB(255, 100, 100)})
             tween:Play()
@@ -180,6 +200,7 @@ local function CreateGui()
     IconCorner.CornerRadius = UDim.new(0, 25)
     IconCorner.Parent = Icon
     Icon.MouseButton1Click:Connect(function()
+        print("Возврат GUI")
         Frame.Visible = true
         Icon.Visible = false
         local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
@@ -212,13 +233,14 @@ local function CreateGui()
     local function UpdateInfoLabel()
         local text = ""
         if CurrentTab == "Статус" then
-            text = GetPlayerData() .. "\n" .. GetServerData()
+            text = GetPlayerData()
         elseif CurrentTab == "Питомцы" then
             text = GetPetsInfo()
         elseif CurrentTab == "Мутации" then
             text = GetMutationsInfo()
         end
-        InfoLabel.Text = text:gsub("*", "")
+        InfoLabel.Text = text
+        print("Обновлён текст вкладки: " .. CurrentTab)
     end
 
     return InfoLabel, Icon, UpdateInfoLabel
@@ -226,39 +248,21 @@ end
 
 local InfoLabel, Icon, UpdateInfoLabel = CreateGui()
 
--- Функция отправки в Telegram
-local function SendTelegramMessage(message)
-    if not Config.ReportingEnabled then return end
-    local url = "https://api.telegram.org/bot" .. Config.TelegramBotToken .. "/sendMessage"
-    local payload = {
-        chat_id = Config.TelegramChatId,
-        text = message,
-        parse_mode = "Markdown"
-    }
-    local success, response = pcall(function()
-        return HttpService:PostAsync(url, HttpService:JSONEncode(payload), Enum.HttpContentType.ApplicationJson)
-    end)
-    if not success then
-        warn("Ошибка отправки в Telegram: " .. tostring(response))
-        InfoLabel.Text = InfoLabel.Text .. "\nОшибка Telegram: " .. tostring(response)
-        UpdateInfoLabel()
-    end
-end
-
 -- Анти-AFK
 if Config.AntiAFK then
     local VirtualUser = game:GetService("VirtualUser")
     Player.Idled:Connect(function()
         VirtualUser:CaptureController()
         VirtualUser:ClickButton2(Vector2.new())
+        print("Анти-AFK сработал")
     end)
 end
 
 -- Логирование структуры игры
 local function LogGameStructure()
-    local log = "*Структура игры*:\n"
+    local log = "Структура игры:\n"
     pcall(function()
-        for _, obj in ipairs(ReplicatedStorage:GetChildren()) do
+        for _, obj in ipairs(game:GetService("ReplicatedStorage"):GetChildren()) do
             log = log .. "- ReplicatedStorage." .. obj.Name .. "\n"
         end
         for _, obj in ipairs(workspace:GetChildren()) do
@@ -275,8 +279,7 @@ local function LogGameStructure()
             end
         end
     end)
-    SendTelegramMessage(log)
-    return log
+    print(log)
 end
 
 -- Получение данных аккаунта
@@ -289,34 +292,21 @@ local function GetPlayerData()
         elseif Player.leaderstats and Player.leaderstats.Coins then
             currency = Player.leaderstats.Coins.Value
         end
-        local inventoryFolder = Player.PlayerGui:FindFirstChild("Inventory") or ReplicatedStorage:FindFirstChild("Inventory")
+        local inventoryFolder = Player.PlayerGui:FindFirstChild("Inventory") or game:GetService("ReplicatedStorage"):FindFirstChild("Inventory")
         if inventoryFolder then
             local items = inventoryFolder:GetChildren()
             inventory = #items > 0 and table.concat(table.map(items, function(item) return item.Name end), ", ") or "Пусто"
         end
     end)
-    return string.format("*Аккаунт*: %s\n*Валюта*: %s Шекелей\n*Инвентарь*: %s", Player.Name, currency, inventory)
-end
-
--- Получение данных сервера
-local function GetServerData()
-    local weather = "Неизвестно"
-    pcall(function()
-        local gameEvents = ReplicatedStorage:FindFirstChild("GameEvents")
-        if gameEvents and gameEvents:FindFirstChild("Weather") then
-            weather = gameEvents.Weather.Value
-        elseif gameEvents and gameEvents:FindFirstChild("WeatherEventStarted") then
-            weather = gameEvents.WeatherEventStarted.Value
-        end
-    end)
-    return string.format("*Сервер*:\n*Погода*: %s", weather)
+    print("Данные аккаунта: Валюта = " .. currency .. ", Инвентарь = " .. inventory)
+    return string.format("Аккаунт: %s\nВалюта: %s Шекелей\nИнвентарь: %s", Player.Name, currency, inventory)
 end
 
 -- Информация о питомцах
 local function GetPetsInfo()
-    local petsInfo = "*Питомцы*:\n"
+    local petsInfo = "Питомцы:\n"
     pcall(function()
-        local petFolder = ReplicatedStorage:FindFirstChild("GameEvents") and ReplicatedStorage.GameEvents:FindFirstChild("PetData")
+        local petFolder = game:GetService("ReplicatedStorage"):FindFirstChild("GameEvents") and game:GetService("ReplicatedStorage").GameEvents:FindFirstChild("PetData")
         if petFolder then
             local activePets = petFolder:GetChildren()
             for _, pet in ipairs(activePets) do
@@ -324,6 +314,7 @@ local function GetPetsInfo()
             end
         else
             petsInfo = petsInfo .. "Питомцы не найдены\n"
+            print("Ошибка: PetData не найдено")
         end
     end)
     return petsInfo
@@ -331,9 +322,9 @@ end
 
 -- Информация о мутациях
 local function GetMutationsInfo()
-    local mutationsInfo = "*Мутации*:\n"
+    local mutationsInfo = "Мутации:\n"
     for engName, mutation in pairs(Mutations) do
-        mutationsInfo = mutationsInfo .. string.format("- %s (×%d): %s\n", mutation.Name, mutation.Multiplier, mutation.Description)
+        mutationsInfo = mutationsInfo .. string.format("- %s (×%d)\n", mutation.Name, mutation.Multiplier)
     end
     return mutationsInfo
 end
@@ -341,7 +332,7 @@ end
 -- Подсчёт цены растения
 local function CalculatePlantPrice(plant)
     local basePrice = PlantPrices[plant.Name] or 10
-    local weight = 1 -- Нужно получить реальный вес
+    local weight = 1
     local growthMutation = 1
     local envMutations = {}
     local envMultiplier = 1
@@ -349,6 +340,8 @@ local function CalculatePlantPrice(plant)
     pcall(function()
         if plant:GetAttribute("Weight") then
             weight = plant:GetAttribute("Weight")
+        else
+            print("Ошибка: Вес растения не найден")
         end
         local mutationFolder = plant:FindFirstChild("Mutations") or plant:GetAttributes()
         for engName, mutation in pairs(Mutations) do
@@ -364,6 +357,7 @@ local function CalculatePlantPrice(plant)
     end)
 
     local totalPrice = basePrice * (weight ^ 2) * growthMutation * envMultiplier
+    print("Цена растения " .. plant.Name .. ": " .. totalPrice .. " Шекелей, Мутации: " .. (#envMutations > 0 and table.concat(table.map(envMutations, function(m) return m.Name end), ", ") or "Нет"))
     return math.floor(totalPrice), envMutations
 end
 
@@ -374,34 +368,49 @@ local function ShowPriceTooltip()
         local mouse = Player:GetMouse()
         mouse.Move:Connect(function()
             local target = mouse.Target
-            if target and target.Parent and target.Parent:IsA("Model") and target.Parent.Parent == workspace:FindFirstChild("Plots"):FindFirstChild(Player.Name) then
-                local price, mutations = CalculatePlantPrice(target.Parent)
-                local mutationText = #mutations > 0 and table.concat(table.map(mutations, function(m) return m.Name end), ", ") or "Нет мутаций"
-                local billboard = target.Parent:FindFirstChild("TooltipBillboard") or Instance.new("BillboardGui")
-                billboard.Name = "TooltipBillboard"
-                billboard.Size = UDim2.new(0, 120, 0, 80)
-                billboard.StudsOffset = Vector3.new(0, 2.5, 0)
-                billboard.AlwaysOnTop = true
-                billboard.Parent = target.Parent
-
-                local tooltipLabel = billboard:FindFirstChild("TooltipLabel") or Instance.new("TextLabel")
-                tooltipLabel.Name = "TooltipLabel"
-                tooltipLabel.Size = UDim2.new(1, 0, 1, 0)
-                tooltipLabel.BackgroundTransparency = 0.5
-                tooltipLabel.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-                tooltipLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-                tooltipLabel.TextStrokeTransparency = 0.5
-                tooltipLabel.TextSize = 10
-                tooltipLabel.Font = Enum.Font.Gotham
-                tooltipLabel.Text = string.format("%s\nЦена: %d Шекелей\nМутации: %s", Mutations[target.Parent.Name] and Mutations[target.Parent.Name].Name or target.Parent.Name, price, mutationText)
-                tooltipLabel.Parent = billboard
-
-                spawn(function()
-                    wait(2)
-                    if billboard.Parent == target.Parent then
-                        billboard:Destroy()
+            if target and target.Parent and target.Parent:IsA("Model") then
+                local plot = target.Parent.Parent
+                local possiblePaths = {
+                    workspace:FindFirstChild("Plots"),
+                    workspace:FindFirstChild("Gardens"),
+                    workspace:FindFirstChild("PlayerPlots")
+                }
+                local isPlayerPlot = false
+                for _, path in ipairs(possiblePaths) do
+                    if path and path:FindFirstChild(Player.Name) and plot == path[Player.Name] then
+                        isPlayerPlot = true
+                        break
                     end
-                end)
+                end
+                if isPlayerPlot then
+                    local price, mutations = CalculatePlantPrice(target.Parent)
+                    local mutationText = #mutations > 0 and table.concat(table.map(mutations, function(m) return m.Name end), ", ") or "Нет мутаций"
+                    local billboard = target.Parent:FindFirstChild("TooltipBillboard") or Instance.new("BillboardGui")
+                    billboard.Name = "TooltipBillboard"
+                    billboard.Size = UDim2.new(0, 120, 0, 80)
+                    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+                    billboard.AlwaysOnTop = true
+                    billboard.Parent = target.Parent
+
+                    local tooltipLabel = billboard:FindFirstChild("TooltipLabel") or Instance.new("TextLabel")
+                    tooltipLabel.Name = "TooltipLabel"
+                    tooltipLabel.Size = UDim2.new(1, 0, 1, 0)
+                    tooltipLabel.BackgroundTransparency = 0.5
+                    tooltipLabel.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+                    tooltipLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    tooltipLabel.TextStrokeTransparency = 0.5
+                    tooltipLabel.TextSize = 10
+                    tooltipLabel.Font = Enum.Font.Gotham
+                    tooltipLabel.Text = string.format("%s\nЦена: %d Шекелей\nМутации: %s", Mutations[target.Parent.Name] and Mutations[target.Parent.Name].Name or target.Parent.Name, price, mutationText)
+                    tooltipLabel.Parent = billboard
+
+                    spawn(function()
+                        wait(2)
+                        if billboard.Parent == target.Parent then
+                            billboard:Destroy()
+                        end
+                    end)
+                end
             end
         end)
     end)
@@ -432,15 +441,23 @@ local function TranslateGame()
                 for eng, rus in pairs(translations) do
                     if element.Text:find(eng) then
                         element.Text = element.Text:gsub(eng, rus)
+                        print("Переведён элемент: " .. eng .. " → " .. rus)
                     end
                 end
             end
         end
-        local plots = workspace:FindFirstChild("Plots")
-        if plots and plots:FindFirstChild(Player.Name) then
-            for _, plant in ipairs(plots[Player.Name]:GetChildren()) do
-                if plant:IsA("Model") and translations[plant.Name] then
-                    plant.Name = translations[plant.Name]
+        local possiblePaths = {
+            workspace:FindFirstChild("Plots"),
+            workspace:FindFirstChild("Gardens"),
+            workspace:FindFirstChild("PlayerPlots")
+        }
+        for _, path in ipairs(possiblePaths) do
+            if path and path:FindFirstChild(Player.Name) then
+                for _, plant in ipairs(path[Player.Name]:GetChildren()) do
+                    if plant:IsA("Model") and translations[plant.Name] then
+                        plant.Name = translations[plant.Name]
+                        print("Переведено растение: " .. plant.Name)
+                    end
                 end
             end
         end
@@ -449,22 +466,10 @@ end
 
 -- Основной цикл
 spawn(function()
-    InfoLabel.Text = "Логирование структуры игры..."
-    SendTelegramMessage(LogGameStructure())
-    
-    while Config.ReportingEnabled do
-        local message = "=== Уведомление Садового Помощника ===\n"
-        message = message .. GetPlayerData() .. "\n"
-        message = message .. GetServerData() .. "\n"
-        message = message .. GetPetsInfo() .. "\n"
-        message = message .. GetMutationsInfo() .. "\n"
-        pcall(function()
-            SendTelegramMessage(message)
-            UpdateInfoLabel()
-            TranslateGame()
-        end)
-        wait(Config.ReportInterval)
-    end
+    print("Скрипт запущен")
+    LogGameStructure()
+    TranslateGame()
+    UpdateInfoLabel()
 end)
 
 -- Запуск подсчёта цены
@@ -474,6 +479,3 @@ spawn(function()
         wait(0.1)
     end
 end)
-
--- Сообщение о запуске
-SendTelegramMessage("Скрипт Садового Помощника запущен для " .. Player.Name)
